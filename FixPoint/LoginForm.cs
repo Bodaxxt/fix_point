@@ -108,6 +108,17 @@ public class LoginForm : Form
         Controls.Add(panel);
 
         AcceptButton = _btnLogin;
+
+        var btnCancel = new Button { Visible = false };
+        btnCancel.Click += (_, _) => Application.Exit();
+        panel.Controls.Add(btnCancel);
+        CancelButton = btnCancel;
+
+        _txtUsername.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        _txtUsername.AutoCompleteSource = AutoCompleteSource.CustomSource;
+        var userSources = new AutoCompleteStringCollection();
+        userSources.AddRange(new[] { "admin", "employee", "tech" });
+        _txtUsername.AutoCompleteCustomSource = userSources;
     }
 
     private void LoginButton_Click(object? sender, EventArgs e)

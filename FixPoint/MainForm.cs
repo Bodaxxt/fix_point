@@ -43,6 +43,7 @@ public class MainForm : Form
     private readonly Button _deviceDeleteButton = new() { Text = "Delete", AutoSize = true, BackColor = Color.FromArgb(231, 76, 60), ForeColor = Color.White, Margin = new Padding(0, 0, 8, 0) };
     private readonly Button _technicianDeleteButton = new() { Text = "Delete", AutoSize = true, BackColor = Color.FromArgb(231, 76, 60), ForeColor = Color.White, Margin = new Padding(0, 0, 8, 0) };
     private readonly Button _repairOrderDeleteButton = new() { Text = "Delete Order", AutoSize = true, BackColor = Color.FromArgb(231, 76, 60), ForeColor = Color.White, Margin = new Padding(0, 0, 8, 0) };
+    private readonly Button _discardCancelButton = new() { Visible = false };
 
     // عناصر إدارة العملاء (Customers)
     private readonly TextBox _customerNameText = new();
@@ -157,6 +158,14 @@ public class MainForm : Form
         KeyPreview = true;
         KeyDown += OnFormKeyDown;
 
+        // ربط زر الإلغاء لتفعيل CancelButton مع زر Escape للتراجع وإلغاء التعديلات غير المحفوظة
+        _discardCancelButton.Click += (_, _) => DiscardActiveTabEdits();
+        Controls.Add(_discardCancelButton);
+        CancelButton = _discardCancelButton;
+
+        // تهيئة مصادر الإكمال التلقائي (Autocomplete) للحقول
+        InitializeAutoCompleteSources();
+
         // 2. بناء شريط القوائم القياسي لبيئة ويندوز (MenuStrip)
         _mainMenu = CreateAppMenuStrip();
         MainMenuStrip = _mainMenu;
@@ -252,6 +261,11 @@ public class MainForm : Form
             QuickCompleteRepair();
             e.SuppressKeyPress = true;
         }
+        else if (e.KeyCode == Keys.Escape)
+        {
+            DiscardActiveTabEdits();
+            e.SuppressKeyPress = true;
+        }
     }
 
     private void ExecuteNewOrder()
@@ -307,6 +321,75 @@ public class MainForm : Form
             "حول نظام FixPoint",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
+    }
+
+    /// <summary>
+    /// إلغاء وتفريغ التعديلات غير المحفوظة في التبويب النشط عند الضغط على مفتاح Escape (CancelButton Handling)
+    /// </summary>
+    private void DiscardActiveTabEdits()
+    {
+        if (_tabControl?.SelectedTab == null) return;
+        var tabTitle = _tabControl.SelectedTab.Text;
+
+        if (tabTitle.Contains("Customer")) ClearCustomerForm();
+        else if (tabTitle.Contains("Device")) ClearDeviceForm();
+        else if (tabTitle.Contains("Technician")) ClearTechnicianForm();
+        else if (tabTitle.Contains("Repair")) ClearRepairOrderForm();
+        else if (tabTitle.Contains("Invoice")) ClearPaymentFields();
+    }
+
+    private void ClearPaymentFields()
+    {
+        _paymentInvoiceComboBox.SelectedIndex = -1;
+        _paymentAmountText.Clear();
+        _paymentNotesText.Clear();
+        _selectedInvoiceId = null;
+        _invoiceGrid.ClearSelection();
+    }
+
+    /// <summary>
+    /// تهيئة مصادر الإكمال التلقائي (Inline Autocomplete) للحقول: Brand, Model, Customer
+    /// مع ضبط AutoCompleteMode = SuggestAppend
+    /// </summary>
+    private void InitializeAutoCompleteSources()
+    {
+        var brandCollection = new AutoCompleteStringCollection();
+        brandCollection.AddRange(new[]
+        {
+            "Dell", "HP", "Lenovo", "Asus", "Acer", "Apple", "MSI", "Samsung",
+            "Toshiba", "Sony", "LG", "Huawei", "Gigabyte", "Microsoft", "Alienware", "Razer"
+        });
+        _deviceBrandText.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        _deviceBrandText.AutoCompleteSource = AutoCompleteSource.CustomSource;
+        _deviceBrandText.AutoCompleteCustomSource = brandCollection;
+
+        var modelCollection = new AutoCompleteStringCollection();
+        modelCollection.AddRange(new[]
+        {
+            "ThinkPad", "IdeaPad", "Legion", "Yoga", "Pavilion", "ProBook", "EliteBook",
+            "Omen", "Victus", "Envy", "Inspiron", "Latitude", "XPS", "Vostro", "Precision",
+            "MacBook Pro", "MacBook Air", "iMac", "ROG Strix", "TUF Gaming", "ZenBook",
+            "VivoBook", "Predator", "Nitro 5", "Aspire 7", "Surface Pro", "Surface Laptop"
+        });
+        _deviceModelText.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        _deviceModelText.AutoCompleteSource = AutoCompleteSource.CustomSource;
+        _deviceModelText.AutoCompleteCustomSource = modelCollection;
+
+        _customerNameText.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        _customerNameText.AutoCompleteSource = AutoCompleteSource.CustomSource;
+    }
+
+    /// <summary>
+    /// مطابقة واختيار العنصر من الـ ComboBox سواء تم اختياره من القائمة أو كتابته بالإكمال التلقائي
+    /// </summary>
+    private ComboBoxItem? ResolveSelectedItem(ComboBox combo)
+    {
+        if (combo.SelectedItem is ComboBoxItem item) return item;
+        var text = combo.Text.Trim();
+        if (string.IsNullOrEmpty(text)) return null;
+        return combo.Items.OfType<ComboBoxItem>().FirstOrDefault(i =>
+            string.Equals(i.Text, text, StringComparison.OrdinalIgnoreCase) ||
+            i.Text.StartsWith(text, StringComparison.OrdinalIgnoreCase));
     }
 
     private void BackupDatabase()
@@ -810,9 +893,26 @@ public class MainForm : Form
         formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
         formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 45F));
 
-        _deviceCustomerComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        _deviceCustomerComboBox.DropDownStyle = ComboBoxStyle.DropDown;
+        _deviceCustomerComboBox.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        _deviceCustomerComboBox.AutoCompleteSource = AutoCompleteSource.ListItems;
+        _deviceCustomerComboBox.Leave += (_, _) =>
+        {
+            var match = ResolveSelectedItem(_deviceCustomerComboBox);
+            if (match != null && !ReferenceEquals(_deviceCustomerComboBox.SelectedItem, match))
+            {
+                _deviceCustomerComboBox.SelectedItem = match;
+            }
+        };
+
         _deviceTypeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
         _deviceTypeComboBox.Items.AddRange(new object[] { "Laptop", "Desktop", "Mobile", "Tablet", "Printer", "Console", "Other" });
+
+        _deviceBrandText.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        _deviceBrandText.AutoCompleteSource = AutoCompleteSource.CustomSource;
+
+        _deviceModelText.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        _deviceModelText.AutoCompleteSource = AutoCompleteSource.CustomSource;
 
         AddFormField(formPanel, "Customer", _deviceCustomerComboBox, 0);
         AddFormField(formPanel, "Device Type", _deviceTypeComboBox, 2);
@@ -889,6 +989,19 @@ public class MainForm : Form
         }
 
         _deviceGrid.DataSource = table;
+        if (_deviceBrandText.AutoCompleteCustomSource != null && _deviceModelText.AutoCompleteCustomSource != null)
+        {
+            foreach (DataRow row in table.Rows)
+            {
+                var b = row["Brand"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(b) && !_deviceBrandText.AutoCompleteCustomSource.Contains(b))
+                    _deviceBrandText.AutoCompleteCustomSource.Add(b);
+
+                var m = row["Model"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(m) && !_deviceModelText.AutoCompleteCustomSource.Contains(m))
+                    _deviceModelText.AutoCompleteCustomSource.Add(m);
+            }
+        }
         await RefreshCustomerDropdownsAsync();
     }
 
@@ -915,7 +1028,8 @@ public class MainForm : Form
 
     private async void SaveDevice(object? sender, EventArgs e)
     {
-        if (_deviceCustomerComboBox.SelectedItem is not ComboBoxItem customerItem ||
+        var customerItem = ResolveSelectedItem(_deviceCustomerComboBox);
+        if (customerItem is null ||
             _deviceTypeComboBox.SelectedItem is null ||
             string.IsNullOrWhiteSpace(_deviceBrandText.Text) ||
             string.IsNullOrWhiteSpace(_deviceModelText.Text) ||
@@ -950,7 +1064,8 @@ public class MainForm : Form
             return;
         }
 
-        if (_deviceCustomerComboBox.SelectedItem is not ComboBoxItem customerItem ||
+        var customerItem = ResolveSelectedItem(_deviceCustomerComboBox);
+        if (customerItem is null ||
             _deviceTypeComboBox.SelectedItem is null ||
             string.IsNullOrWhiteSpace(_deviceBrandText.Text) ||
             string.IsNullOrWhiteSpace(_deviceModelText.Text) ||
@@ -1227,7 +1342,17 @@ public class MainForm : Form
         formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
         formPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 45F));
 
-        _repairCustomerComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        _repairCustomerComboBox.DropDownStyle = ComboBoxStyle.DropDown;
+        _repairCustomerComboBox.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        _repairCustomerComboBox.AutoCompleteSource = AutoCompleteSource.ListItems;
+        _repairCustomerComboBox.Leave += (_, _) =>
+        {
+            var match = ResolveSelectedItem(_repairCustomerComboBox);
+            if (match != null && !ReferenceEquals(_repairCustomerComboBox.SelectedItem, match))
+            {
+                _repairCustomerComboBox.SelectedItem = match;
+            }
+        };
         _repairCustomerComboBox.SelectedIndexChanged += async (_, _) =>
         {
             if (_repairCustomerComboBox.SelectedItem is ComboBoxItem item && int.TryParse(item.Value, out var cid))
@@ -1434,7 +1559,8 @@ public class MainForm : Form
 
     private async void SaveRepairOrder(object? sender, EventArgs e)
     {
-        if (_repairCustomerComboBox.SelectedItem is not ComboBoxItem customerItem ||
+        var customerItem = ResolveSelectedItem(_repairCustomerComboBox);
+        if (customerItem is null ||
             _repairDeviceComboBox.SelectedItem is not ComboBoxItem deviceItem ||
             string.IsNullOrWhiteSpace(_repairProblemText.Text))
         {
@@ -1497,8 +1623,15 @@ public class MainForm : Form
             return;
         }
 
-        var customerId = ((ComboBoxItem)_repairCustomerComboBox.SelectedItem).Value;
-        var deviceId = ((ComboBoxItem)_repairDeviceComboBox.SelectedItem).Value;
+        var customerItem = ResolveSelectedItem(_repairCustomerComboBox);
+        if (customerItem is null || _repairDeviceComboBox.SelectedItem is not ComboBoxItem devItem)
+        {
+            MessageBox.Show("يرجى اختيار العميل والجهاز.", "تنبيه", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var customerId = customerItem.Value;
+        var deviceId = devItem.Value;
         var technicianId = _repairTechnicianComboBox.SelectedItem is ComboBoxItem tech ? tech.Value : null;
 
         decimal cost = 0m;
@@ -1904,6 +2037,12 @@ public class MainForm : Form
             Height = 700,
             StartPosition = FormStartPosition.CenterScreen
         };
+        previewDialog.KeyPreview = true;
+        previewDialog.KeyDown += (s, ev) => { if (ev.KeyCode == Keys.Escape) previewDialog.Close(); };
+        var previewCancelBtn = new Button { Visible = false };
+        previewCancelBtn.Click += (_, _) => previewDialog.Close();
+        previewDialog.Controls.Add(previewCancelBtn);
+        previewDialog.CancelButton = previewCancelBtn;
         previewDialog.ShowDialog();
     }
 
@@ -2066,6 +2205,7 @@ public class MainForm : Form
         _deviceCustomerComboBox.Items.Clear();
         _repairCustomerComboBox.Items.Clear();
 
+        var customerNames = new AutoCompleteStringCollection();
         foreach (DataRow row in customers.Rows)
         {
             var id = row["CustomerId"].ToString()!;
@@ -2074,7 +2214,9 @@ public class MainForm : Form
             var item = new ComboBoxItem(id, $"{name} ({phone})");
             _deviceCustomerComboBox.Items.Add(item);
             _repairCustomerComboBox.Items.Add(item);
+            customerNames.Add(name);
         }
+        _customerNameText.AutoCompleteCustomSource = customerNames;
     }
 
     private async Task RefreshTechnicianDropdownsAsync()
