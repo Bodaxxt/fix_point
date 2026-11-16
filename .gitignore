@@ -1,0 +1,14 @@
+# Build results
+bin/
+obj/
+*.user
+*.suo
+*.pdb
+
+# Local DB files
+*.db-shm
+*.db-wal
+
+# OS files
+.DS_Store
+Thumbs.db
