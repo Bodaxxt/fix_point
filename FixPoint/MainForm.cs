@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Printing;
 using System.Globalization;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Microsoft.Data.Sqlite;
 
@@ -788,11 +789,40 @@ public class MainForm : Form
         _customerAddressText.Text = row.Cells[3].Value?.ToString() ?? string.Empty;
     }
 
+    // =========================================================================
+    // VALIDATION HELPERS – Regex Guards
+    // =========================================================================
+    private static readonly Regex EgyptianPhoneRegex = new(@"^01[0125][0-9]{8}$", RegexOptions.Compiled);
+    private static readonly Regex SerialNumberRegex  = new(@"^[A-Z0-9]{4,30}$",   RegexOptions.Compiled);
+
+    /// <summary>
+    /// يتحقق من صحة رقم الهاتف المصري (11 رقماً، يبدأ بـ 010 أو 011 أو 012 أو 015)
+    /// </summary>
+    private static bool IsValidEgyptianPhone(string phone) =>
+        EgyptianPhoneRegex.IsMatch(phone.Trim());
+
+    /// <summary>
+    /// يتحقق من صحة Serial Number (4-30 حرف، أحرف كبيرة وأرقام فقط)
+    /// </summary>
+    private static bool IsValidSerialNumber(string serial) =>
+        SerialNumberRegex.IsMatch(serial.Trim());
+
+    // =========================================================================
+    // CUSTOMERS CRUD
+    // =========================================================================
     private async void SaveCustomer(object? sender, EventArgs e)
     {
         if (string.IsNullOrWhiteSpace(_customerNameText.Text) || string.IsNullOrWhiteSpace(_customerPhoneText.Text) || string.IsNullOrWhiteSpace(_customerAddressText.Text))
         {
             MessageBox.Show("يرجى ملء جميع حقول العميل.", "تنبيه", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (!IsValidEgyptianPhone(_customerPhoneText.Text))
+        {
+            MessageBox.Show("رقم الهاتف غير صحيح.\nيجب أن يكون 11 رقماً ويبدأ بـ 010 أو 011 أو 012 أو 015.", "تنبيه - رقم هاتف خاطئ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _customerPhoneText.Focus();
+            _customerPhoneText.SelectAll();
             return;
         }
 
@@ -817,6 +847,14 @@ public class MainForm : Form
         if (_selectedCustomerId is null)
         {
             MessageBox.Show("يرجى اختيار عميل من الجدول أولاً.", "تنبيه", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (!IsValidEgyptianPhone(_customerPhoneText.Text))
+        {
+            MessageBox.Show("رقم الهاتف غير صحيح.\nيجب أن يكون 11 رقماً ويبدأ بـ 010 أو 011 أو 012 أو 015.", "تنبيه - رقم هاتف خاطئ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _customerPhoneText.Focus();
+            _customerPhoneText.SelectAll();
             return;
         }
 
@@ -1039,13 +1077,28 @@ public class MainForm : Form
             return;
         }
 
+        var serial = _deviceSerialText.Text.Trim().ToUpperInvariant();
+        if (!IsValidSerialNumber(serial))
+        {
+            MessageBox.Show(
+                "السيريال نمبر غير صحيح.\n" +
+                "• يجب أن يتكون من 4 إلى 30 حرفاً.\n" +
+                "• أحرف كبيرة (A-Z) وأرقام (0-9) فقط.\n" +
+                "• لا مسافات أو رموز خاصة.",
+                "تنبيه - Serial Number خاطئ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _deviceSerialText.Text = serial;
+            _deviceSerialText.Focus();
+            _deviceSerialText.SelectAll();
+            return;
+        }
+
         var success = await DatabaseService.ExecuteNonQueryAsync(
             "INSERT INTO Devices (CustomerId, DeviceType, Brand, Model, SerialNumber) VALUES (@customerId, @type, @brand, @model, @serial);",
             ("@customerId", customerItem.Value),
             ("@type", _deviceTypeComboBox.SelectedItem.ToString()!),
             ("@brand", _deviceBrandText.Text.Trim()),
             ("@model", _deviceModelText.Text.Trim()),
-            ("@serial", _deviceSerialText.Text.Trim()));
+            ("@serial", serial));
 
         if (success)
         {
@@ -1075,13 +1128,28 @@ public class MainForm : Form
             return;
         }
 
+        var serial = _deviceSerialText.Text.Trim().ToUpperInvariant();
+        if (!IsValidSerialNumber(serial))
+        {
+            MessageBox.Show(
+                "السيريال نمبر غير صحيح.\n" +
+                "• يجب أن يتكون من 4 إلى 30 حرفاً.\n" +
+                "• أحرف كبيرة (A-Z) وأرقام (0-9) فقط.\n" +
+                "• لا مسافات أو رموز خاصة.",
+                "تنبيه - Serial Number خاطئ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _deviceSerialText.Text = serial;
+            _deviceSerialText.Focus();
+            _deviceSerialText.SelectAll();
+            return;
+        }
+
         var success = await DatabaseService.ExecuteNonQueryAsync(
             "UPDATE Devices SET CustomerId = @customerId, DeviceType = @type, Brand = @brand, Model = @model, SerialNumber = @serial WHERE DeviceId = @id;",
             ("@customerId", customerItem.Value),
             ("@type", _deviceTypeComboBox.SelectedItem.ToString()!),
             ("@brand", _deviceBrandText.Text.Trim()),
             ("@model", _deviceModelText.Text.Trim()),
-            ("@serial", _deviceSerialText.Text.Trim()),
+            ("@serial", serial),
             ("@id", _selectedDeviceId.Value));
 
         if (success)
@@ -1231,6 +1299,14 @@ public class MainForm : Form
             return;
         }
 
+        if (!IsValidEgyptianPhone(_technicianPhoneText.Text))
+        {
+            MessageBox.Show("رقم الهاتف غير صحيح.\nيجب أن يكون 11 رقماً ويبدأ بـ 010 أو 011 أو 012 أو 015.", "تنبيه - رقم هاتف خاطئ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _technicianPhoneText.Focus();
+            _technicianPhoneText.SelectAll();
+            return;
+        }
+
         var success = await DatabaseService.ExecuteNonQueryAsync(
             "INSERT INTO Technicians (FullName, Phone, Specialty) VALUES (@name, @phone, @specialty);",
             ("@name", _technicianNameText.Text.Trim()),
@@ -1251,6 +1327,14 @@ public class MainForm : Form
         if (_selectedTechnicianId is null)
         {
             MessageBox.Show("يرجى اختيار فني من الجدول أولاً.", "تنبيه", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (!IsValidEgyptianPhone(_technicianPhoneText.Text))
+        {
+            MessageBox.Show("رقم الهاتف غير صحيح.\nيجب أن يكون 11 رقماً ويبدأ بـ 010 أو 011 أو 012 أو 015.", "تنبيه - رقم هاتف خاطئ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _technicianPhoneText.Focus();
+            _technicianPhoneText.SelectAll();
             return;
         }
 
