@@ -583,7 +583,7 @@ public class MainForm : Form
         var devicesTask = DatabaseService.GetTableAsync("SELECT COUNT(*) AS TotalDevices FROM Devices;");
         var techniciansTask = DatabaseService.GetTableAsync("SELECT COUNT(*) AS TotalTechnicians FROM Technicians;");
         var ordersTask = DatabaseService.GetTableAsync("SELECT COUNT(*) AS TotalOrders FROM RepairOrders;");
-        var completedTask = DatabaseService.GetTableAsync("SELECT COUNT(*) AS TotalCompleted FROM RepairOrders WHERE Status = 'Completed';");
+        var completedTask = DatabaseService.GetTableAsync("SELECT COUNT(*) AS TotalCompleted FROM RepairOrders WHERE Status IN ('Completed', 'Delivered');");
         var pendingTask = DatabaseService.GetTableAsync("SELECT COUNT(*) AS TotalPending FROM RepairOrders WHERE Status IN ('Received', 'In Progress');");
         var revenueTask = DatabaseService.GetTableAsync("SELECT COALESCE(SUM(Amount), 0) AS TotalRevenue FROM Payments;");
         var recentTask = DatabaseService.GetTableAsync(
